@@ -401,6 +401,20 @@ Generar la documentación de la base de datos utilizando un programa compatible c
 
 
 --1 Trigger: Al cambiar el estado de un módulo a Apagado cambiar el consumo a 0kw
+Go
+CREATE TRIGGER CambiarConsumoModuloApagado
+on Modulo
+for update 
+as update Modulo
+set Modulo.Consumo_KW = 0 from inserted
+Where EXISTS(Select * from Modulo where Estado ='Apagado')
+go
+
+Insert into Modulo Values ('AMD', 'Apagado', 2000,2021, 'Windows Server', 4005, 2010, '217.39.198.42')
+Select * from Modulo
+update Modulo Set Estado = 'Apagado' Where Fabricante = 'AMD'
+
+
 --2 Trigger: Al eliminar un usuario eliminar todas sus asignaciones de mantenimiento y su acceso a rack también
 --3 Trigger: Al insertar o actualizar una asignación de mantenimiento insertar un acceso (AccesoUsuarioRack) a los usuarios autorizados por el tiempo de mantenimiento
 
