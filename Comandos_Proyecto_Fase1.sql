@@ -416,15 +416,134 @@ update Modulo Set Estado = 'Apagado' Where Fabricante = 'AMD'
 
 
 --2 Trigger: Al eliminar un usuario eliminar todas sus asignaciones de mantenimiento y su acceso a rack también
+Go
+CREATE TRIGGER EliminarAccesoUsuarioEliminado
+on usuario
+for delete
+as 
+begin
+Delete from AccesoUsuarioRack where ID_Usuario IN(Select accesoUsuarioRack.ID_Usuario from AccesoUsuarioRack inner join deleted on deleted.Id_Usuario = AccesoUsuarioRack.ID_Usuario)
+Delete from AsignacionMantenimiento where Cod_Usuario IN(Select Cod_Usuario from AsignacionMantenimiento inner join deleted on deleted.Id_Usuario = AsignacionMantenimiento.Cod_Usuario)
+end
+Go
+Select * from AsignacionMantenimiento
+
+
 --3 Trigger: Al insertar o actualizar una asignación de mantenimiento insertar un acceso (AccesoUsuarioRack) a los usuarios autorizados por el tiempo de mantenimiento
+Go
+CREATE TRIGGER CrearAccesoAUsuarioAsignadoMantenimiento
+on AsignacionMantenimiento
+after insert
+as 
+begin
+DECLARE @FechaInicio DATE; Set @FechaInicio = (Select FechaInicio from inserted)
+DECLARE @FechaFin DATE; Set @FechaFin = (Select FechaFin from inserted)
+DECLARE @Cod_Server int; Set @Cod_Server = (Select Cod_Server from inserted)
+DECLARE @Cod_Usuario int; Set @Cod_Usuario = (Select Cod_Usuario from inserted)
+Insert into AccesoUsuarioRack values (@Cod_Usuario,@Cod_Server,@FechaInicio,@FechaFin,@Cod_Usuario)
+end
+Go
 
---4 Vista: Mostrar los módulos que pertenecen a un servidor específico
+Select * from AccesoUsuarioRack
+Select * from AsignacionMantenimiento
+
+
+--4 Procedimiento: Mostrar los módulos que pertenecen a un servidor específico
+Go
+Create Procedure ConsultarModulosDelServidorNumero
+@ServidorNumero int
+as
+Select * from Modulo where Cod_Server = @ServidorNumero
+Go
+
+ConsultarModulosDelServidorNumero @ServidorNumero = 1002
+
 --5 Vista: Mostrar los usuarios administradores
+go
+Create view MostrarUsuariosAdministradores
+as 
+Select Usuario.Id_Usuario, Nombre, Teléfono,Dirección,Correo_Electrónico  from Usuario inner join AccesoUsuarioRack on Usuario.Id_Usuario = ID_AdministradorACargo
 
---6 Función lineal:Consultar los mantenimientos autorizados por un administrador especificado
---7 Función lineal:Consultar los servidores que no han recibido mantenimiento en un número de meses especificado
+go
 
---8 Función escalar:Consultar el número de racks que posee un servidor Cod_Server especificado
+Select *From MostrarUsuariosAdministradores
 
---9 Procedimiento: Extender la fecha de asignación de mantenimiento un número de días
+
+--6 Vista: Mostrar los servidores con mantenimientos programados 
+Go
+Create view MostrarServidoresMantenimientosActivos
+as
+Select RackServidor.Cod_Server, Marca, Funcion, Fecha_Mantenimiento,PesoKG,Cod_Mantenimiento,Cod_Usuario,FechaInicio,FechaFin from RackServidor inner join AsignacionMantenimiento on RackServidor.Cod_Server = AsignacionMantenimiento.Cod_Server
+where FechaInicio<GETDATE() AND FechaFin>GETDATE()
+Go
+
+Select * from MostrarServidoresMantenimientosActivos
+
+
+
+--7 Función lineal:Consultar los mantenimientos autorizados por un administrador especificado
+Go
+Create Function MostrarMantenimientosDelAdministrador
+(
+@Codigo_Administrador int
+)
+returns table 
+as 
+return(
+Select * from Mantenimiento where ID_AdministradorACargo = @Codigo_Administrador
+)
+Go
+
+Select * from MostrarMantenimientosDelAdministrador(10)
+
+--8 Función lineal:Consultar los servidores que no han recibido mantenimiento en un número de meses especificado
+Go
+Create Function MostrarServidoresNoMantenidosEnMeses(
+@Meses int
+)
+Returns table
+return(
+Select * from RackServidor where NOT DATEDIFF(MONTH,Fecha_Mantenimiento, GETDATE())<@Meses
+)
+Go
+
+Select * from MostrarServidoresNoMantenidosEnMeses(48)
+Select DATEDIFF(MONTH,Fecha_Mantenimiento, GETDATE()) As p from RackServidor
+Select * from RackServidor
+
+
+--9 Función escalar:Consultar el número de racks que posee un servidor Cod_Server especificado
+Go
+Create Function NumeroDeModulosDelServidorNumero(
+@Cod_Servidor int
+)
+Returns int
+as
+--Sé que puedo facultativamente esribir otro código aquí si es necesario
+Begin
+Declare @Result int
+Select @Result = Count(*) from Modulo group by Modulo.Cod_Server having Cod_Server = @Cod_Servidor
+Return(@Result)
+END
+go
+
+
+
+Select dbo.NumeroDeModulosDelServidorNumero(1002) AS NumeroModulos;
+go
+
+
+Select * from modulo
+
+--10 Vista: Ver número de módulos separados por cada Servidor
+GO
+Create view MostrarNumeroModulosDeCadaServidor 
+AS
+Select DISTINCT modulo.Cod_Server, COUNT(*) OVER (Partition by Modulo.Cod_Server ) AS NumeroModulos FROM Modulo
+GO
+
+Select * From MostrarNumeroModulosDeCadaServidor
+--11 Procedimiento: Extender la fecha de asignación de mantenimiento un número de días
+
+
 
